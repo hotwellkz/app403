@@ -20,14 +20,16 @@ const iconMap: { [key: string]: React.ElementType } = {
 const iconCache = new Map<string, React.ReactElement>();
 
 // Функция для создания иконки с кэшированием
-const createCachedIcon = (iconName: string): React.ReactElement => {
-  const cacheKey = `${iconName}_24_text-white`;
+const createCachedIcon = (iconName: string | undefined | null): React.ReactElement => {
+  // Безопасная обработка отсутствующего или невалидного iconName
+  const safeIconName = iconName && typeof iconName === 'string' ? iconName : 'Home';
+  const cacheKey = `${safeIconName}_24_text-white`;
   
   if (iconCache.has(cacheKey)) {
     return iconCache.get(cacheKey)!;
   }
 
-  const IconComponent = iconMap[iconName] || Home;
+  const IconComponent = iconMap[safeIconName] || Home;
   const icon = React.createElement(IconComponent, { 
     size: 24,
     className: "text-white"
@@ -62,14 +64,15 @@ export const useCategories = () => {
         updates.set(change.doc.id, null);
       } else {
         const data = change.doc.data();
+        // Безопасное создание иконки с проверкой
         const icon = createCachedIcon(data.icon);
         
         updates.set(change.doc.id, {
           id: change.doc.id,
-          title: data.title,
+          title: data.title || 'Без названия',
           amount: String(data.amount || 0),
           icon,
-          iconName: data.icon,
+          iconName: data.icon || 'Home',
           color: data.color || 'bg-emerald-500',
           row: parseInt(data.row) || 1,
           isVisible: data.isVisible !== undefined ? data.isVisible : true

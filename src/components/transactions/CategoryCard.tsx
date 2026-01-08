@@ -4,6 +4,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { formatAmount } from '../../utils/formatUtils';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { Home } from 'lucide-react';
 
 interface CategoryCardProps {
   category: CategoryCardType;
@@ -49,6 +50,15 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
     }
   };
 
+  // Безопасный рендер иконки с fallback
+  const renderIcon = () => {
+    if (category.icon && React.isValidElement(category.icon)) {
+      return category.icon;
+    }
+    // Fallback иконка, если category.icon отсутствует или невалиден
+    return <Home className="w-6 h-6 text-white" />;
+  };
+
   return (
     <div 
       ref={setNodeRef}
@@ -60,8 +70,8 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
         isDragging ? 'cursor-grabbing' : 'cursor-grab'
       } touch-none select-none`}
     >
-      <div className={`w-12 h-12 ${category.color} rounded-full flex items-center justify-center shadow-lg`}>
-        {category.icon}
+      <div className={`w-12 h-12 ${category.color || 'bg-emerald-500'} rounded-full flex items-center justify-center shadow-lg`}>
+        {renderIcon()}
       </div>
       <div className="text-center">
         <div className="text-[10px] font-medium text-gray-700 truncate max-w-[60px]">
