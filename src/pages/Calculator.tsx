@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Calculator as CalcIcon, Home, Ruler, Settings } from 'lucide-react';
 import { CalculatorForm } from '../components/calculator/CalculatorForm';
 import { PriceSummary } from '../components/calculator/PriceSummary';
@@ -86,12 +86,12 @@ export const Calculator: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleCalculationChange = (result: CalculationResult, newArea: number) => {
+  const handleCalculationChange = useCallback((result: CalculationResult, newArea: number) => {
     setCalculationResult(result);
     setArea(newArea);
-  };
+  }, []);
 
-  const handleOptionsChange = (newOptions: { 
+  const handleOptionsChange = useCallback((newOptions: { 
     isVatIncluded: boolean; 
     isInstallment: boolean; 
     installmentAmount: number;
@@ -101,11 +101,11 @@ export const Calculator: React.FC = () => {
     hideDeliveryCost: boolean;
   }) => {
     setOptions(newOptions);
-  };
+  }, []);
 
-  const handleParametersChange = (newParameters: any) => {
+  const handleParametersChange = useCallback((newParameters: any) => {
     setParameters(newParameters);
-  };
+  }, []);
 
   // Функция для применения НДС и рассрочки к базовому расчету
   const applyAdditionalCharges = (baseResult: CalculationResult, options: { isVatIncluded: boolean; isInstallment: boolean; installmentAmount: number }) => {

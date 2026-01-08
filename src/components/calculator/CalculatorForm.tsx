@@ -69,25 +69,31 @@ export const CalculatorForm: React.FC<CalculatorFormProps> = ({
   useEffect(() => {
     if (configLoaded) {
       const config = getConfigSync();
-      setFormData(prev => ({
-        ...prev,
-        foundation: config.FOUNDATION_OPTIONS[0]?.label || '',
-        floors: config.FLOORS_OPTIONS[0]?.label || '',
-        firstFloorType: config.FIRST_FLOOR_TYPE_OPTIONS[0]?.label || '',
-        secondFloorType: config.SECOND_FLOOR_TYPE_OPTIONS[0]?.label || '',
-        thirdFloorType: config.THIRD_FLOOR_TYPE_OPTIONS[0]?.label || '',
-        firstFloorHeight: config.FLOOR_HEIGHT_OPTIONS[0]?.label || '',
-        secondFloorHeight: config.FLOOR_HEIGHT_OPTIONS[0]?.label || '',
-        thirdFloorHeight: config.FLOOR_HEIGHT_OPTIONS[0]?.label || '',
-        firstFloorThickness: config.WALL_THICKNESS_OPTIONS[0]?.label || '',
-        secondFloorThickness: config.WALL_THICKNESS_OPTIONS[0]?.label || '',
-        thirdFloorThickness: config.WALL_THICKNESS_OPTIONS[0]?.label || '',
-        partitionType: config.PARTITION_OPTIONS.height_2_5[0]?.label || '',
-        ceiling: config.CEILING_OPTIONS[0]?.label || '',
-        houseShape: config.HOUSE_SHAPE_OPTIONS[0]?.label || '',
-        additionalWorks: config.ADDITIONAL_WORKS_OPTIONS[0]?.label || '',
-        deliveryCity: (config.DELIVERY_OPTIONS || DELIVERY_CITIES)[0]?.label || '',
-      }));
+      setFormData(prev => {
+        // Проверяем, нужно ли обновлять значения (только если они пустые)
+        const needsUpdate = !prev.foundation || !prev.floors || !prev.firstFloorType;
+        if (!needsUpdate) return prev;
+        
+        return {
+          ...prev,
+          foundation: prev.foundation || config.FOUNDATION_OPTIONS[0]?.label || '',
+          floors: prev.floors || config.FLOORS_OPTIONS[0]?.label || '',
+          firstFloorType: prev.firstFloorType || config.FIRST_FLOOR_TYPE_OPTIONS[0]?.label || '',
+          secondFloorType: prev.secondFloorType || config.SECOND_FLOOR_TYPE_OPTIONS[0]?.label || '',
+          thirdFloorType: prev.thirdFloorType || config.THIRD_FLOOR_TYPE_OPTIONS[0]?.label || '',
+          firstFloorHeight: prev.firstFloorHeight || config.FLOOR_HEIGHT_OPTIONS[0]?.label || '',
+          secondFloorHeight: prev.secondFloorHeight || config.FLOOR_HEIGHT_OPTIONS[0]?.label || '',
+          thirdFloorHeight: prev.thirdFloorHeight || config.FLOOR_HEIGHT_OPTIONS[0]?.label || '',
+          firstFloorThickness: prev.firstFloorThickness || config.WALL_THICKNESS_OPTIONS[0]?.label || '',
+          secondFloorThickness: prev.secondFloorThickness || config.WALL_THICKNESS_OPTIONS[0]?.label || '',
+          thirdFloorThickness: prev.thirdFloorThickness || config.WALL_THICKNESS_OPTIONS[0]?.label || '',
+          partitionType: prev.partitionType || config.PARTITION_OPTIONS.height_2_5[0]?.label || '',
+          ceiling: prev.ceiling || config.CEILING_OPTIONS[0]?.label || '',
+          houseShape: prev.houseShape || config.HOUSE_SHAPE_OPTIONS[0]?.label || '',
+          additionalWorks: prev.additionalWorks || config.ADDITIONAL_WORKS_OPTIONS[0]?.label || '',
+          deliveryCity: prev.deliveryCity || (config.DELIVERY_OPTIONS || DELIVERY_CITIES)[0]?.label || '',
+        };
+      });
     }
   }, [configLoaded]);
 
