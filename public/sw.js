@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hotwell-cache-v2';
+const CACHE_NAME = 'hotwell-cache-v3'; // Обновлено для принудительного обновления SW
 const SETTINGS_CACHE_NAME = 'hotwell-settings-v1';
 
 const CACHED_URLS = [
@@ -157,10 +157,31 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Для HTML и API запросов используем Network First
+  // КРИТИЧНО: Запрещаем кэширование для API запросов и не-GET методов
+  const isApiRequest = url.pathname.includes('/api/') || 
+                       url.hostname === 'api.2wix.ru' || 
+                       url.hostname.includes('api.2wix.ru');
+  const isNonGetRequest = event.request.method !== 'GET';
+  
+  // Для API запросов и не-GET методов - всегда networkOnly, без кэширования
+  if (isApiRequest || isNonGetRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // НЕ кэшируем API запросы и не-GET запросы
+          return response;
+        })
+        .catch((error) => {
+          console.warn('🌐 API/Non-GET request failed:', error);
+          return createErrorResponse(503);
+        })
+    );
+    return;
+  }
+
+  // Для HTML запросов используем Network First (только GET)
   if (url.pathname === '/' || 
-      url.pathname.endsWith('.html') || 
-      url.pathname.includes('/api/') ||
+      url.pathname.endsWith('.html') ||
       url.pathname.startsWith('/transactions') ||
       url.pathname.startsWith('/client-files')) {
     event.respondWith(
@@ -171,12 +192,12 @@ self.addEventListener('fetch', (event) => {
             return response || createErrorResponse(500);
           }
 
-          // Кэшируем успешный ответ
+          // Кэшируем только GET запросы для HTML
           try {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME)
               .then(cache => {
-                if (isSupportedScheme(event.request.url)) {
+                if (isSupportedScheme(event.request.url) && event.request.method === 'GET') {
                   cache.put(event.request, responseToCache).catch((error) => {
                     console.warn('⚠️ Failed to cache response:', error);
                   });
@@ -193,7 +214,7 @@ self.addEventListener('fetch', (event) => {
         })
         .catch((error) => {
           console.warn('🌐 Network request failed, trying cache:', error);
-          // При ошибке сети возвращаем из кэша
+          // При ошибке сети возвращаем из кэша (только для GET)
           return caches.match(event.request)
             .then(response => {
               if (response) {
