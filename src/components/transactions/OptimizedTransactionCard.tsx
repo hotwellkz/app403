@@ -98,7 +98,7 @@ const OptimizedTransactionCard: React.FC<TransactionCardProps> = memo(({
                 <div className="font-medium text-gray-900">{transaction.fromUser}</div>
                 
                 {/* Рендерим файлы из waybillData */}
-                {renderAttachments && renderAttachments()}
+                {renderAttachments ? renderAttachments() : null}
                 
                 {/* Отображение прикрепленных файлов с lazy loading */}
                 {transaction.attachments && transaction.attachments.length > 0 && (

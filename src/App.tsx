@@ -10,6 +10,7 @@ import { LoadingSpinner } from './components/LoadingSpinner';
 import { Toaster } from 'react-hot-toast';
 import './styles/animations.css';
 import { MenuVisibilityProvider } from './contexts/MenuVisibilityContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy loading для тяжелых страниц
 const Feed = lazy(() => import('./pages/Feed').then(module => ({ default: module.Feed })));
@@ -31,7 +32,7 @@ const Warehouse = lazy(() => import('./pages/Warehouse').then(module => ({ defau
 const NewIncome = lazy(() => import('./pages/warehouse/NewIncome'));
 const NewExpense = lazy(() => import('./pages/warehouse/NewExpense'));
 const TransactionHistoryPage = lazy(() => import('./pages/TransactionHistoryPage'));
-const OptimizedTransactionHistoryPage = lazy(() => import('./pages/OptimizedTransactionHistoryPage'));
+const OptimizedTransactionHistoryPage = lazy(() => import('./pages/OptimizedTransactionHistoryPage').then(module => ({ default: module.OptimizedTransactionHistoryPage })));
 const Profile = lazy(() => import('./pages/Profile'));
 const WhatsApp = lazy(() => import('./pages/WhatsApp'));
 const CreateTemplate = lazy(() => import('./pages/CreateTemplate'));
@@ -105,8 +106,9 @@ const AppContent: React.FC = () => {
           }} 
         />
         <div className="flex-1 overflow-auto">
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
             <Route path="/" element={<Navigate to="/transactions" replace />} />
             <Route path="/admin" element={
               <AdminRoute>
@@ -211,8 +213,9 @@ const AppContent: React.FC = () => {
               </ApprovalGuard>
             } />
             <Route path="/profile" element={<Profile />} />
-            </Routes>
-          </Suspense>
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
     </div>

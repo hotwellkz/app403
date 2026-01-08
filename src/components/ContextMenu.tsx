@@ -76,8 +76,14 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose, position]);
 
-  const handleClick = (e: React.MouseEvent, action: () => void, requiresAdmin = false) => {
+  const handleClick = (e: React.MouseEvent, action: (() => void) | undefined, requiresAdmin = false) => {
     e.stopPropagation();
+    
+    if (!action) {
+      console.warn('ContextMenu: action is undefined');
+      onClose();
+      return;
+    }
     
     if (requiresAdmin && !isAdmin) {
       showErrorNotification('Только администраторы могут выполнять это действие');
@@ -86,7 +92,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     }
 
     onClose();
-    action();
+    try {
+      action();
+    } catch (error) {
+      console.error('ContextMenu action error:', error);
+      showErrorNotification('Ошибка при выполнении действия');
+    }
   };
 
   return (
@@ -102,13 +113,15 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         {title}
       </div>
 
-      <button
-        onClick={(e) => handleClick(e, onViewHistory)}
-        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-      >
-        <History className="w-4 h-4" />
-        История транзакций
-      </button>
+      {onViewHistory && (
+        <button
+          onClick={(e) => handleClick(e, onViewHistory)}
+          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+        >
+          <History className="w-4 h-4" />
+          История транзакций
+        </button>
+      )}
 
       {showClientInfo && onViewClientInfo && (
         <button
@@ -120,16 +133,18 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         </button>
       )}
 
-      <button
-        onClick={(e) => handleClick(e, onEdit, true)}
-        className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 
-          ${isAdmin ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-400 cursor-not-allowed'}`}
-      >
-        <Edit2 className="w-4 h-4" />
-        {editLabel}
-      </button>
+      {onEdit && (
+        <button
+          onClick={(e) => handleClick(e, onEdit, true)}
+          className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 
+            ${isAdmin ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-400 cursor-not-allowed'}`}
+        >
+          <Edit2 className="w-4 h-4" />
+          {editLabel}
+        </button>
+      )}
 
-      {!hideDelete && (
+      {!hideDelete && onDelete && (
         <button
           onClick={(e) => handleClick(e, onDelete, true)}
           className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 

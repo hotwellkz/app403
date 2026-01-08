@@ -4,6 +4,7 @@ import { ru } from 'date-fns/locale';
 import { Transaction } from './types';
 import OptimizedTransactionCard from './OptimizedTransactionCard';
 import { formatAmount } from '../../utils/formatUtils';
+import { FileText } from 'lucide-react';
 import clsx from 'clsx';
 
 interface GroupedTransactions {
@@ -138,15 +139,52 @@ const OptimizedTransactionList: React.FC<OptimizedTransactionListProps> = memo((
   DayHeader.displayName = 'DayHeader';
 
   // Компонент транзакции с мемоизацией
-  const TransactionItem = memo(({ transaction }: { transaction: Transaction }) => (
-    <OptimizedTransactionCard
-      transaction={transaction}
-      isExpanded={swipedTransactionId === transaction.id}
-      swipeDirection={swipeDirection}
-      onDelete={() => onDeleteClick(transaction)}
-      onWaybill={() => onWaybillClick(transaction)}
-    />
-  ));
+  const TransactionItem = memo(({ transaction }: { transaction: Transaction }) => {
+    // Безопасная функция renderAttachments
+    const renderAttachments = useCallback(() => {
+      if (transaction.waybillData?.files?.length > 0) {
+        return (
+          <div className="flex items-center gap-1">
+            {transaction.waybillData.files.map((file, index) => (
+              <a
+                key={index}
+                href={file.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative group"
+              >
+                {file.type.startsWith('image/') ? (
+                  <div className="w-8 h-8 rounded overflow-hidden border border-gray-200">
+                    <img
+                      src={file.url}
+                      alt={file.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded border border-gray-200">
+                    <FileText className="w-5 h-5 text-gray-500" />
+                  </div>
+                )}
+              </a>
+            ))}
+          </div>
+        );
+      }
+      return null;
+    }, [transaction.waybillData]);
+
+    return (
+      <OptimizedTransactionCard
+        transaction={transaction}
+        isExpanded={swipedTransactionId === transaction.id}
+        swipeDirection={swipeDirection}
+        onDelete={() => onDeleteClick(transaction)}
+        onWaybill={() => onWaybillClick(transaction)}
+        renderAttachments={renderAttachments}
+      />
+    );
+  });
 
   TransactionItem.displayName = 'TransactionItem';
 

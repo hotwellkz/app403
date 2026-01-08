@@ -83,8 +83,8 @@ export default defineConfig({
     // Используем встроенную минификацию esbuild вместо terser
     minify: 'esbuild',
     
-    // Sourcemaps только для development
-    sourcemap: process.env.NODE_ENV === 'development',
+    // Sourcemaps для диагностики (временно включены для build)
+    sourcemap: true,
   },
   server: {
     host: true,

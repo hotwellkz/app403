@@ -597,48 +597,51 @@ export const TransactionHistoryPage: React.FC = () => {
                           onWaybill={() => handleWaybillClick(transaction)}
                           isExpanded={swipedTransactionId === transaction.id}
                           swipeDirection={swipeDirection}
-                          renderAttachments={() => 
-                            transaction.waybillData?.files?.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                {transaction.waybillData.files.map((file, index) => (
-                                  <a
-                                    key={index}
-                                    href={file.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="relative group"
-                                  >
-                                    {file.type.startsWith('image/') ? (
-                                      <>
-                                        <div className="w-8 h-8 rounded overflow-hidden border border-gray-200">
-                                          <img
-                                            src={file.url}
-                                            alt={file.name}
-                                            className="w-full h-full object-cover"
-                                          />
-                                        </div>
-                                        {/* Увеличенное превью при наведении */}
-                                        <div className="hidden group-hover:block fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
-                                          <div className="bg-white rounded-lg shadow-2xl p-2">
+                          renderAttachments={() => {
+                            if (transaction.waybillData?.files?.length > 0) {
+                              return (
+                                <div className="flex items-center gap-1">
+                                  {transaction.waybillData.files.map((file, index) => (
+                                    <a
+                                      key={index}
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="relative group"
+                                    >
+                                      {file.type.startsWith('image/') ? (
+                                        <>
+                                          <div className="w-8 h-8 rounded overflow-hidden border border-gray-200">
                                             <img
                                               src={file.url}
                                               alt={file.name}
-                                              className="max-w-[90vw] max-h-[90vh] w-auto h-auto object-contain rounded"
+                                              className="w-full h-full object-cover"
                                             />
                                           </div>
-                                          <div className="fixed inset-0 -z-10 bg-black/50 backdrop-blur-sm"></div>
+                                          {/* Увеличенное превью при наведении */}
+                                          <div className="hidden group-hover:block fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+                                            <div className="bg-white rounded-lg shadow-2xl p-2">
+                                              <img
+                                                src={file.url}
+                                                alt={file.name}
+                                                className="max-w-[90vw] max-h-[90vh] w-auto h-auto object-contain rounded"
+                                              />
+                                            </div>
+                                            <div className="fixed inset-0 -z-10 bg-black/50 backdrop-blur-sm"></div>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded border border-gray-200">
+                                          <FileText className="w-5 h-5 text-gray-500" />
                                         </div>
-                                      </>
-                                    ) : (
-                                      <div className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded border border-gray-200">
-                                        <FileText className="w-5 h-5 text-gray-500" />
-                                      </div>
-                                    )}
-                                  </a>
-                                ))}
-                              </div>
-                            )
-                          }
+                                      )}
+                                    </a>
+                                  ))}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
                         />
                       ))}
                     </div>

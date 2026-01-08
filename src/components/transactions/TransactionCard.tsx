@@ -77,7 +77,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({
               <div className="flex items-center gap-2">
                 <div className="font-medium text-gray-900">{transaction.fromUser}</div>
                 {/* Рендерим файлы из waybillData */}
-                {renderAttachments && renderAttachments()}
+                {renderAttachments ? renderAttachments() : null}
                 {/* Отображение прикрепленных файлов */}
                 {transaction.attachments && transaction.attachments.length > 0 && (
                   <div className="flex gap-1">
