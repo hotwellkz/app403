@@ -121,6 +121,12 @@ let isBlocked = false;
 let blockedReason: string | null = null;
 let blockedUrl: string | null = null;
 
+// Счетчики для защиты от ложных срабатываний
+let criticalBlockedCount = 0; // Критичные домены (web.whatsapp.com, g.whatsapp.net)
+let mediaBlockedCount = 0; // Media CDN (media-*.cdn.whatsapp.net)
+const CRITICAL_BLOCK_THRESHOLD = 2; // Минимум 2 критичных блокировки для установки флага
+const MEDIA_BLOCK_IGNORE_THRESHOLD = 5; // Игнорируем до 5 блокировок media CDN
+
 // Watchdog для отслеживания ready timeout после authenticated
 let readyTimer: NodeJS.Timeout | null = null;
 let hasWatchdogResetAttempted = false; // Флаг для предотвращения повторных reset от watchdog
@@ -324,6 +330,8 @@ const updateWaState = (newState: WhatsAppState, qrData?: string | null, reason?:
         isBlocked = false;
         blockedReason = null;
         blockedUrl = null;
+        criticalBlockedCount = 0;
+        mediaBlockedCount = 0;
     }
     
     console.log(`[WA] state=${oldState} -> ${newState}${lastQr ? ' (QR available)' : ''}${reason ? ` reason=${reason}` : ''}`);
@@ -1992,44 +2000,69 @@ const setupEnhancedClientEventHandlers = (clientInstance: Client): void => {
                                               errorText.includes('ERR_ABORTED') ||
                                               errorText.includes('net::ERR_BLOCKED_BY_CLIENT') ||
                                               errorText.includes('blocked');
-                        const isWhatsAppDomain = url.includes('whatsapp.com') || 
-                                                url.includes('whatsapp.net') ||
-                                                url.includes('cdn.whatsapp.net') ||
+                        
+                        // Разделяем критичные и некритичные домены
+                        const isCriticalDomain = url.includes('web.whatsapp.com') || 
                                                 url.includes('g.whatsapp.net') ||
-                                                url.includes('web.whatsapp.com');
+                                                url.includes('v.whatsapp.net');
+                        const isMediaCDN = url.includes('media-') && url.includes('cdn.whatsapp.net');
+                        const isWhatsAppDomain = url.includes('whatsapp.com') || 
+                                                url.includes('whatsapp.net');
+                        
+                        // DELETE запросы к media CDN часто нормальны (очистка кэша)
+                        const isDeleteToMedia = method === 'DELETE' && isMediaCDN;
                         
                         console.log(`[WA_PAGE][requestfailed] ${method} ${resourceType} ${url}`);
-                        console.log(`[WA_PAGE][requestfailed] errorText=${errorText}, requestBlocked=${requestBlocked}, isWhatsAppDomain=${isWhatsAppDomain}`);
+                        console.log(`[WA_PAGE][requestfailed] errorText=${errorText}, requestBlocked=${requestBlocked}, isCritical=${isCriticalDomain}, isMedia=${isMediaCDN}, isDelete=${isDeleteToMedia}`);
                         
-                        // Детекция блокировки доменов WhatsApp
+                        // Игнорируем DELETE к media CDN - это нормальная операция очистки кэша
+                        if (isDeleteToMedia) {
+                            console.log(`[WA_PAGE][requestfailed] Ignoring DELETE to media CDN (normal cache cleanup): ${url}`);
+                            return;
+                        }
+                        
+                        // Детекция блокировки: только критичные домены или множественные блокировки media CDN
                         if (requestBlocked && isWhatsAppDomain && !isBlocked) {
-                            isBlocked = true;
-                            blockedReason = `${errorText} (${method} ${resourceType})`;
-                            blockedUrl = url;
-                            console.error('[WA_PAGE][requestfailed] ⚠️ CRITICAL: WhatsApp domain request blocked!');
-                            console.error(`[WA_PAGE][requestfailed] ⚠️ Blocked URL: ${url}`);
-                            console.error(`[WA_PAGE][requestfailed] ⚠️ Blocked reason: ${errorText}`);
-                            console.error(`[WA_PAGE][requestfailed] ⚠️ Method: ${method}, ResourceType: ${resourceType}`);
-                            console.error('[WA_PAGE][requestfailed] ⚠️ This will prevent READY state. Check AdBlock/antivirus web shield.');
-                            
-                            // Останавливаем watchdog - не нужно ресетить при блокировке
-                            stopReadyWatchdog();
-                            
-                            // Обновляем состояние на blocked
-                            updateWaState('blocked', null);
-                            
-                            // Отправляем событие в сокет с полной информацией
-                            io.emit('wa:state', {
-                                state: 'blocked',
-                                reason: blockedReason,
-                                blockedUrl: blockedUrl,
-                                failureText: errorText,
-                                method: method,
-                                resourceType: resourceType,
-                                timestamp: new Date().toISOString()
-                            });
-                            
-                            console.log('[WA] BLOCKED by client/adblock/webshield. No auto-reset. User action required.');
+                            if (isCriticalDomain) {
+                                criticalBlockedCount++;
+                                console.error(`[WA_PAGE][requestfailed] ⚠️ CRITICAL domain blocked (count: ${criticalBlockedCount}): ${url}`);
+                                
+                                // Блокируем только после нескольких критичных блокировок
+                                if (criticalBlockedCount >= CRITICAL_BLOCK_THRESHOLD) {
+                                    isBlocked = true;
+                                    blockedReason = `Critical domain blocked: ${errorText} (${method} ${resourceType})`;
+                                    blockedUrl = url;
+                                    console.error('[WA_PAGE][requestfailed] ⚠️ CRITICAL: WhatsApp critical domain request blocked!');
+                                    console.error(`[WA_PAGE][requestfailed] ⚠️ Blocked URL: ${url}`);
+                                    console.error(`[WA_PAGE][requestfailed] ⚠️ Blocked reason: ${errorText}`);
+                                    console.error('[WA_PAGE][requestfailed] ⚠️ This will prevent READY state. Check AdBlock/antivirus web shield.');
+                                    
+                                    stopReadyWatchdog();
+                                    updateWaState('blocked', null);
+                                    
+                                    io.emit('wa:state', {
+                                        state: 'blocked',
+                                        reason: blockedReason,
+                                        blockedUrl: blockedUrl,
+                                        failureText: errorText,
+                                        method: method,
+                                        resourceType: resourceType,
+                                        timestamp: new Date().toISOString()
+                                    });
+                                    
+                                    console.log('[WA] BLOCKED by client/adblock/webshield. No auto-reset. User action required.');
+                                }
+                            } else if (isMediaCDN) {
+                                mediaBlockedCount++;
+                                console.warn(`[WA_PAGE][requestfailed] ⚠️ Media CDN blocked (count: ${mediaBlockedCount}): ${url}`);
+                                
+                                // Блокируем только если media CDN блокируется массово (не критично для READY)
+                                if (mediaBlockedCount >= MEDIA_BLOCK_IGNORE_THRESHOLD * 2) {
+                                    console.error('[WA_PAGE][requestfailed] ⚠️ WARNING: Multiple media CDN blocks detected, but not blocking session (media is not critical for READY)');
+                                    // НЕ устанавливаем isBlocked = true для media CDN
+                                    // Media CDN не критичен для достижения READY состояния
+                                }
+                            }
                         }
                     } catch (e: any) {
                         console.log('[WA_PAGE][requestfailed] error logging:', e?.message || e);
@@ -2042,40 +2075,53 @@ const setupEnhancedClientEventHandlers = (clientInstance: Client): void => {
                         if (status >= 400) {
                             console.log('[WA_PAGE][response]', status, url);
                             
-                            // Проверяем блокировку через статус ответа
-                            const isWhatsAppDomain = url.includes('whatsapp.com') || 
-                                                    url.includes('whatsapp.net') ||
-                                                    url.includes('cdn.whatsapp.net') ||
+                            // Разделяем критичные и некритичные домены
+                            const isCriticalDomain = url.includes('web.whatsapp.com') || 
                                                     url.includes('g.whatsapp.net') ||
-                                                    url.includes('web.whatsapp.com');
+                                                    url.includes('v.whatsapp.net');
+                            const isMediaCDN = url.includes('media-') && url.includes('cdn.whatsapp.net');
+                            const isWhatsAppDomain = url.includes('whatsapp.com') || 
+                                                    url.includes('whatsapp.net');
                             
-                            // Статус 0 или ERR может означать блокировку
+                            // Игнорируем 404/403 на media CDN - это может быть нормально
+                            if ((status === 404 || status === 403) && isMediaCDN) {
+                                console.log(`[WA_PAGE][response] Ignoring ${status} on media CDN (may be normal): ${url}`);
+                                return;
+                            }
+                            
+                            // Статус 0 или критичные ошибки только на критичных доменах
                             if ((status === 0 || status >= 400) && isWhatsAppDomain && !isBlocked) {
-                                isBlocked = true;
-                                blockedReason = `HTTP ${status}`;
-                                blockedUrl = url;
-                                console.error('[WA_PAGE][response] ⚠️ CRITICAL: WhatsApp domain response error!');
-                                console.error(`[WA_PAGE][response] ⚠️ Blocked URL: ${url}`);
-                                console.error(`[WA_PAGE][response] ⚠️ Status: ${status}`);
-                                
-                                // Останавливаем watchdog
-                                stopReadyWatchdog();
-                                
-                                // Обновляем состояние на blocked
-                                updateWaState('blocked', null);
-                                
-                                // Отправляем событие в сокет с полной информацией
-                                io.emit('wa:state', {
-                                    state: 'blocked',
-                                    reason: blockedReason,
-                                    blockedUrl: blockedUrl,
-                                    failureText: `HTTP ${status}`,
-                                    method: 'GET', // response не имеет method, используем GET по умолчанию
-                                    resourceType: 'document', // response не имеет resourceType, используем document по умолчанию
-                                    timestamp: new Date().toISOString()
-                                });
-                                
-                                console.log('[WA] BLOCKED by client/adblock/webshield. No auto-reset. User action required.');
+                                if (isCriticalDomain) {
+                                    criticalBlockedCount++;
+                                    console.error(`[WA_PAGE][response] ⚠️ CRITICAL domain error (count: ${criticalBlockedCount}): HTTP ${status} ${url}`);
+                                    
+                                    if (criticalBlockedCount >= CRITICAL_BLOCK_THRESHOLD) {
+                                        isBlocked = true;
+                                        blockedReason = `HTTP ${status}`;
+                                        blockedUrl = url;
+                                        console.error('[WA_PAGE][response] ⚠️ CRITICAL: WhatsApp critical domain response error!');
+                                        console.error(`[WA_PAGE][response] ⚠️ Blocked URL: ${url}`);
+                                        console.error(`[WA_PAGE][response] ⚠️ Status: ${status}`);
+                                        
+                                        stopReadyWatchdog();
+                                        updateWaState('blocked', null);
+                                        
+                                        io.emit('wa:state', {
+                                            state: 'blocked',
+                                            reason: blockedReason,
+                                            blockedUrl: blockedUrl,
+                                            failureText: `HTTP ${status}`,
+                                            method: 'GET',
+                                            resourceType: 'document',
+                                            timestamp: new Date().toISOString()
+                                        });
+                                        
+                                        console.log('[WA] BLOCKED by client/adblock/webshield. No auto-reset. User action required.');
+                                    }
+                                } else if (isMediaCDN) {
+                                    // Media CDN ошибки не критичны - логируем, но не блокируем
+                                    console.warn(`[WA_PAGE][response] Media CDN error (non-critical): HTTP ${status} ${url}`);
+                                }
                             }
                         }
                     } catch {
@@ -3043,6 +3089,8 @@ const performManualReset = async (): Promise<void> => {
     isBlocked = false;
     blockedReason = null;
     blockedUrl = null;
+    criticalBlockedCount = 0;
+    mediaBlockedCount = 0;
     
     // Останавливаем watchdog
     stopReadyWatchdog();

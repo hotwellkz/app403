@@ -250,11 +250,20 @@ const WhatsAppContent: React.FC = () => {
                             </button>
                         </div>
                         <div className="flex justify-center">
-                            {whatsappStatus === 'authenticated' || (whatsappStatus === 'qr_pending' && !qrCode) ? (
+                            {whatsappStatus === 'authenticated' ? (
                                 <div className="flex items-center justify-center w-64 h-64 bg-gray-100 rounded-lg">
                                     <div className="text-center">
-                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-                                        <span className="text-gray-600">Подключаем...</span>
+                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                                        <span className="text-gray-600 font-medium">Аутентификация успешна</span>
+                                        <p className="text-xs text-gray-500 mt-2">Ожидаем готовности WhatsApp...</p>
+                                        <p className="text-xs text-gray-400 mt-1">Это может занять до 90 секунд</p>
+                                    </div>
+                                </div>
+                            ) : (whatsappStatus === 'qr_pending' && !qrCode) ? (
+                                <div className="flex items-center justify-center w-64 h-64 bg-gray-100 rounded-lg">
+                                    <div className="text-center">
+                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto mb-4"></div>
+                                        <span className="text-gray-600">Генерируем QR-код...</span>
                                     </div>
                                 </div>
                             ) : qrCode ? (
@@ -273,11 +282,9 @@ const WhatsAppContent: React.FC = () => {
                         </div>
                         <p className="mt-4 text-center text-gray-600">
                             {whatsappStatus === 'authenticated'
-                                ? (status?.includes('дольше обычного') 
-                                    ? 'Подключение занимает больше времени, чем обычно. Пожалуйста, подождите...'
-                                    : 'Пожалуйста, подождите...')
+                                ? 'Аутентификация успешна. WhatsApp загружает данные и готовится к работе. Это может занять до 90 секунд.'
                                 : (whatsappStatus === 'qr_pending' && !qrCode)
-                                ? 'Пожалуйста, подождите...'
+                                ? 'Генерируем QR-код для подключения...'
                                 : 'Откройте WhatsApp на вашем телефоне и отсканируйте QR-код'}
                         </p>
                         {whatsappStatus === 'restarting' && (
@@ -288,30 +295,38 @@ const WhatsAppContent: React.FC = () => {
                             </div>
                         )}
                         {whatsappStatus === 'blocked' && (
-                            <div className="mt-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+                            <div className="mt-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
                                 <div className="text-red-800 text-sm text-center mb-4">
-                                    <p className="font-semibold mb-2">
-                                        ⚠️ Блокируются запросы WhatsApp
+                                    <p className="font-semibold mb-2 text-base">
+                                        ⚠️ Блокируются запросы к критичным доменам WhatsApp
                                     </p>
                                     <p className="text-xs mb-2">
-                                        AdBlock/Антивирус Web Shield/DNS/VPN блокируют домены WhatsApp.
+                                        Системная защита (Windows Defender Network Protection, роутер, DNS фильтр) блокирует доступ к web.whatsapp.com
                                     </p>
-                                    <p className="text-xs text-red-600">
-                                        Отключите фильтр или добавьте исключение для *.whatsapp.com и *.whatsapp.net
+                                    <p className="text-xs text-red-600 font-medium mb-3">
+                                        Это системная проблема, не браузерная. Решение: изолировать WhatsApp сервис в Docker или на отдельном сервере.
                                     </p>
+                                    <div className="text-left text-xs bg-white p-2 rounded border border-red-200 mb-3">
+                                        <p className="font-semibold mb-1">Быстрое решение:</p>
+                                        <ol className="list-decimal list-inside space-y-1 text-gray-700">
+                                            <li>Используйте Docker: <code className="bg-gray-100 px-1 rounded">docker-compose up</code></li>
+                                            <li>Или измените DNS на 8.8.8.8 в настройках сети</li>
+                                            <li>Или добавьте исключения в Windows Defender</li>
+                                        </ol>
+                                    </div>
                                 </div>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={handleResetSession}
                                         className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium"
                                     >
-                                        Я отключил фильтр — Reset
+                                        Попробовать снова
                                     </button>
                                     <button
                                         onClick={() => {
-                                            window.open('https://github.com/pedroslopez/whatsapp-web.js#troubleshooting', '_blank');
+                                            window.open('https://github.com/hotwellkz/app401/blob/main/whatsapp-server/BLOCKING_DIAGNOSIS.md', '_blank');
                                         }}
-                                        className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors text-sm"
+                                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm font-medium"
                                     >
                                         Инструкция
                                     </button>

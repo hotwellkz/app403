@@ -30,7 +30,9 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     CHROME_DEVEL_SANDBOX=false \
     CHROME_NO_SANDBOX=true \
     DISPLAY=:99 \
-    NODE_ENV=production
+    NODE_ENV=production \
+    WA_HEADLESS=true \
+    WA_READY_TIMEOUT_MS=90000
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
