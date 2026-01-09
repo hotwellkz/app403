@@ -3072,9 +3072,10 @@ const createWhatsAppClient = (): Client => {
     const isWindows = process.platform === 'win32';
     const isLocal = isWindows || process.env.NODE_ENV === 'development' || process.env.FORCE_LOCAL_MODE === 'true';
     
+    // В Docker используем /app/.wwebjs_auth (volume mount), в локальной разработке - ../.wwebjs_auth
     const sessionPath = isLocal 
         ? path.resolve(__dirname, '../.wwebjs_auth')
-        : (process.env.WHATSAPP_SESSION_PATH || '/app/data/.wwebjs_auth');
+        : (process.env.WHATSAPP_SESSION_PATH || '/app/.wwebjs_auth');
     
     const chromiumPath = isLocal 
         ? undefined
@@ -3402,9 +3403,10 @@ const initializeWhatsAppClient = async (): Promise<void> => {
         const isLocal = isWindows || process.env.NODE_ENV === 'development' || process.env.FORCE_LOCAL_MODE === 'true';
         
         // Настройки путей в зависимости от ОС
+        // В Docker используем /app/.wwebjs_auth (volume mount), в локальной разработке - ../.wwebjs_auth
         const sessionPath = isLocal 
             ? path.resolve(__dirname, '../.wwebjs_auth')  // Локальная папка для Windows/разработки
-            : (process.env.WHATSAPP_SESSION_PATH || '/app/data/.wwebjs_auth'); // Docker/VM путь
+            : (process.env.WHATSAPP_SESSION_PATH || '/app/.wwebjs_auth'); // Docker/VM путь (volume mount)
         
         // Путь к браузеру - для Windows/локальной разработки не указываем (Puppeteer найдет сам)
         const chromiumPath = isLocal 
@@ -3574,13 +3576,20 @@ const initializeWhatsAppClient = async (): Promise<void> => {
                     
                     // Уничтожаем неудавшийся клиент полностью
                     try {
-                        if (client) {
+                        if (client && typeof client.destroy === 'function') {
                             console.log('🗑️  Destroying failed client instance...');
-                            await client.destroy();
-                            await new Promise(resolve => setTimeout(resolve, 5000)); // Ждем полного уничтожения
+                            try {
+                                await client.destroy();
+                                await new Promise(resolve => setTimeout(resolve, 5000)); // Ждем полного уничтожения
+                            } catch (destroyErr: any) {
+                                // Игнорируем ошибки destroy (client может быть уже уничтожен)
+                                console.log('⚠️  Warning: Error destroying failed client (non-critical):', destroyErr?.message || destroyErr);
+                            }
+                        } else {
+                            console.log('⚠️  Warning: Client is null or destroy method unavailable, skipping destroy');
                         }
-                    } catch (destroyError) {
-                        console.log('⚠️  Warning: Error destroying failed client:', destroyError);
+                    } catch (destroyError: any) {
+                        console.log('⚠️  Warning: Error destroying failed client (non-critical):', destroyError?.message || destroyError);
                     }
                     
                     // Создаем новый клиент для следующей попытки с уникальным ID

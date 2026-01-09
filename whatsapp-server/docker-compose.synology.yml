@@ -14,7 +14,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-      - WHATSAPP_SESSION_PATH=/app/data/.wwebjs_auth
+      - WHATSAPP_SESSION_PATH=/app/.wwebjs_auth
       - CHROME_FLAGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --single-process --no-zygote
       - CHROME_DEVEL_SANDBOX=false
       - CHROME_NO_SANDBOX=true
