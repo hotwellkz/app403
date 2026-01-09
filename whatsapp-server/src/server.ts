@@ -593,6 +593,7 @@ app.get('/chats', async (req, res) => {
 });
 
 // Health check endpoint для мониторинга состояния сервера
+// ВАЖНО: Всегда возвращает 200, чтобы фронт не ломался от CORS/503
 app.get('/health', async (req, res) => {
     try {
         const healthData = {
@@ -621,20 +622,17 @@ app.get('/health', async (req, res) => {
             }
         };
 
-        // Определяем общий статус здоровья
+        // Определяем общий статус здоровья (для информации, не для HTTP статуса)
         const overallHealthy = healthData.server.ready && 
                               healthData.database.connected;
 
-        // Возвращаем соответствующий HTTP статус
-        if (overallHealthy) {
-            res.status(200).json(healthData);
-        } else {
-            res.status(503).json({
-                ...healthData,
-                status: 'degraded',
-                message: 'Some services are not available'
-            });
-        }
+        // ВСЕГДА возвращаем 200, чтобы фронт не ломался
+        // Статус WhatsApp указываем в JSON, но не в HTTP коде
+        res.status(200).json({
+            ...healthData,
+            status: overallHealthy ? 'ok' : 'degraded',
+            message: overallHealthy ? 'All services operational' : 'Some services are not available (check whatsapp.ready)'
+        });
 
         console.log(`🩺 Health check: ${overallHealthy ? 'HEALTHY' : 'DEGRADED'} - WhatsApp: ${healthData.whatsapp.ready ? 'READY' : 'NOT_READY'}`);
     } catch (error: any) {
@@ -2643,21 +2641,110 @@ app.post('/whatsapp/logout', async (req, res) => {
 });
 
 // Добавляем endpoint для получения статуса клиента
+// ВАЖНО: Всегда возвращает 200, статус указывается в JSON
 app.get('/whatsapp/status', (req, res) => {
     try {
-        const isReady = client && client.info;
-        const hasQr = !!qrCode;
+        const isReady = client && client.info && isClientReady;
+        const hasQr = !!(lastQr || qrCode);
+        const currentQr = lastQr || qrCode || null;
         
-        res.json({
+        // Определяем статус на основе состояния
+        let status: string = 'disconnected';
+        if (isReady) {
+            status = 'ready';
+        } else if (hasQr) {
+            status = 'qr';
+        } else if (waState === 'authenticated') {
+            status = 'authenticated';
+        } else if (waState === 'idle') {
+            status = 'idle';
+        } else if (waState === 'blocked') {
+            status = 'blocked';
+        } else {
+            status = waState || 'disconnected';
+        }
+        
+        // ВСЕГДА возвращаем 200, даже если клиент не готов
+        res.status(200).json({
+            success: true,
+            status: status,
             isReady,
             hasQr,
-            status: isReady ? 'ready' : (hasQr ? 'qr_pending' : 'disconnected'),
+            qrCode: currentQr, // Включаем QR код если есть
+            currentState: waState,
+            message: isReady 
+                ? 'WhatsApp client is ready' 
+                : hasQr 
+                    ? 'QR code available, waiting for scan'
+                    : status === 'authenticated'
+                        ? 'Authenticated, waiting for ready'
+                        : 'WhatsApp client not ready',
             accountInfo: isReady ? currentAccountInfo : null
         });
     } catch (error: any) {
-        res.status(500).json({ 
+        console.error('❌ Error getting WhatsApp status:', error);
+        // Даже при ошибке возвращаем 200 с информацией об ошибке
+        res.status(200).json({ 
+            success: false,
+            status: 'error',
             error: 'Failed to get WhatsApp status',
-            details: error?.message || 'Unknown error'
+            message: error?.message || 'Unknown error',
+            hasQr: false,
+            isReady: false
+        });
+    }
+});
+
+// Добавляем endpoint /api/whatsapp/status для единообразия с другими API endpoints
+app.get('/api/whatsapp/status', (req, res) => {
+    try {
+        const isReady = client && client.info && isClientReady;
+        const hasQr = !!(lastQr || qrCode);
+        const currentQr = lastQr || qrCode || null;
+        
+        // Определяем статус на основе состояния
+        let status: string = 'disconnected';
+        if (isReady) {
+            status = 'ready';
+        } else if (hasQr) {
+            status = 'qr';
+        } else if (waState === 'authenticated') {
+            status = 'authenticated';
+        } else if (waState === 'idle') {
+            status = 'idle';
+        } else if (waState === 'blocked') {
+            status = 'blocked';
+        } else {
+            status = waState || 'disconnected';
+        }
+        
+        // ВСЕГДА возвращаем 200, даже если клиент не готов
+        res.status(200).json({
+            success: true,
+            status: status,
+            isReady,
+            hasQr,
+            qrCode: currentQr, // Включаем QR код если есть
+            currentState: waState,
+            message: isReady 
+                ? 'WhatsApp client is ready' 
+                : hasQr 
+                    ? 'QR code available, waiting for scan'
+                    : status === 'authenticated'
+                        ? 'Authenticated, waiting for ready'
+                        : 'WhatsApp client not ready',
+            accountInfo: isReady ? currentAccountInfo : null
+        });
+    } catch (error: any) {
+        console.error('❌ Error getting WhatsApp status:', error);
+        // Даже при ошибке возвращаем 200 с информацией об ошибке
+        res.status(200).json({ 
+            success: false,
+            status: 'error',
+            error: 'Failed to get WhatsApp status',
+            message: error?.message || 'Unknown error',
+            hasQr: false,
+            isReady: false
         });
     }
 });
