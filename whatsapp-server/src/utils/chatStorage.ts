@@ -235,9 +235,65 @@ export const addMessage = async (message: ChatMessage): Promise<Chat> => {
 export const saveChats = async (): Promise<void> => {
     try {
         console.log('Saving chats to Supabase...');
-        // Получаем массив чатов
-        const chats = Object.values(chatsCache);
-        console.log('Chats to save:', chats);
+        
+        if (isSupabaseDisabled || !supabase) {
+            console.log('📱 Supabase disabled - skipping saveChats');
+            return;
+        }
+        
+        // Получаем массив чатов и очищаем от null значений
+        const chats = Object.values(chatsCache)
+            .map(chat => {
+                // Фильтруем сообщения от null
+                const cleanMessages = (chat.messages || [])
+                    .filter((msg: any) => msg !== null && msg !== undefined)
+                    .map((msg: any) => ({
+                        id: msg.id || `msg_${Date.now()}`,
+                        body: msg.body || '',
+                        from: msg.from || '',
+                        to: msg.to || '',
+                        timestamp: msg.timestamp || new Date().toISOString(),
+                        fromMe: !!msg.fromMe,
+                        hasMedia: !!msg.hasMedia,
+                        mediaUrl: msg.mediaUrl || '',
+                        mediaType: msg.mediaType || '',
+                        fileName: msg.fileName || '',
+                        fileSize: msg.fileSize || 0,
+                        isVoiceMessage: !!msg.isVoiceMessage,
+                        duration: msg.duration || 0
+                    }));
+                
+                // Очищаем lastMessage если он null
+                const cleanLastMessage = chat.lastMessage && chat.lastMessage !== null ? {
+                    id: chat.lastMessage.id || `msg_${Date.now()}`,
+                    body: chat.lastMessage.body || '',
+                    from: chat.lastMessage.from || '',
+                    to: chat.lastMessage.to || '',
+                    timestamp: chat.lastMessage.timestamp || new Date().toISOString(),
+                    fromMe: !!chat.lastMessage.fromMe,
+                    hasMedia: !!chat.lastMessage.hasMedia,
+                    mediaUrl: chat.lastMessage.mediaUrl || '',
+                    mediaType: chat.lastMessage.mediaType || '',
+                    fileName: chat.lastMessage.fileName || '',
+                    fileSize: chat.lastMessage.fileSize || 0,
+                    isVoiceMessage: !!chat.lastMessage.isVoiceMessage,
+                    duration: chat.lastMessage.duration || 0
+                } : undefined;
+                
+                return {
+                    id: chat.id || `chat_${Date.now()}`,
+                    phoneNumber: chat.phoneNumber || '',
+                    name: chat.name || chat.phoneNumber?.replace('@c.us', '') || '',
+                    avatarUrl: chat.avatarUrl || undefined,
+                    messages: cleanMessages,
+                    lastMessage: cleanLastMessage,
+                    unreadCount: typeof chat.unreadCount === 'number' ? chat.unreadCount : 0,
+                    timestamp: chat.timestamp || new Date().toISOString()
+                };
+            })
+            .filter(chat => chat.phoneNumber); // Убираем чаты без phoneNumber
+        
+        console.log('Chats to save (cleaned):', chats.length);
 
         // Удаляем все существующие чаты
         const { error: deleteError } = await supabase
@@ -265,7 +321,12 @@ export const saveChats = async (): Promise<void> => {
         console.log('Chats saved successfully');
     } catch (error) {
         console.error('Error in saveChats:', error);
-        throw error;
+        // Не пробрасываем ошибку при graceful shutdown, чтобы не блокировать завершение
+        if (process.listenerCount('SIGINT') > 0 || process.listenerCount('SIGTERM') > 0) {
+            console.log('⚠️  Error in saveChats during shutdown - non-critical, continuing...');
+        } else {
+            throw error;
+        }
     }
 };
 

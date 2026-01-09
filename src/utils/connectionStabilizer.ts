@@ -31,10 +31,22 @@ export interface QueuedRequest {
 
 interface HealthCheckResponse {
     status: string;
+    ok?: boolean;
+    whatsappReady?: boolean;
     whatsapp?: {
         ready: boolean;
         authenticated: boolean;
+        connected: boolean;
+        state?: string;
     };
+}
+
+interface WhatsAppStatusResponse {
+    success: boolean;
+    status: string;
+    hasQr: boolean;
+    currentState: string;
+    message: string;
 }
 
 // Состояние соединения
@@ -139,18 +151,28 @@ class ConnectionStabilizer {
         this.lastHealthCheckTime = now;
         
         try {
-            const response = await axios.get<HealthCheckResponse>(`${import.meta.env.VITE_BACKEND_URL || 'http://35.194.39.8:3000'}/health`, {
+            // Используем same-origin endpoint через nginx proxy
+            const healthUrl = '/api/health';
+            const response = await axios.get<HealthCheckResponse>(healthUrl, {
                 timeout: 5000,
-                validateStatus: (status) => status === 200
+                validateStatus: (status) => status === 200 // Только 200 OK
             });
             
-            const isReady = response.data?.whatsapp?.ready === true;
+            // Проверяем статус WhatsApp из ответа
+            const whatsappReady = response.data?.whatsapp?.ready === true || response.data?.whatsappReady === true;
+            const whatsappAuthenticated = response.data?.whatsapp?.authenticated === true;
+            const whatsappConnected = response.data?.whatsapp?.connected === true;
+            const whatsappState = response.data?.whatsapp?.state || '';
+            
+            // Сервер готов если WhatsApp ready или хотя бы authenticated
+            // authenticated означает что QR отсканирован и идет загрузка
+            const isReady = whatsappReady || (whatsappAuthenticated && (whatsappState === 'authenticated' || whatsappState === 'ready'));
             
             this.updateState({
                 isConnected: true,
                 isServerReady: isReady,
                 lastConnectedAt: new Date(),
-                failureCount: 0,
+                failureCount: 0, // Сбрасываем счетчик при успешном ответе
                 is503ErrorActive: false // Сервер ответил успешно
             });
 
@@ -161,19 +183,30 @@ class ConnectionStabilizer {
 
             return true;
         } catch (error: any) {
+            // НЕ считаем disconnected при одной ошибке - нужны несколько подряд
+            const consecutiveFailures = this.state.failureCount + 1;
             const is503 = error.response?.status === 503;
+            const isNetworkError = !error.response || 
+                                  error.code === 'NETWORK_ERROR' ||
+                                  error.code === 'ECONNREFUSED' ||
+                                  error.code === 'ENOTFOUND';
+            
+            // Только после 3+ ошибок подряд считаем disconnected
+            const shouldMarkDisconnected = consecutiveFailures >= 3 && isNetworkError;
             
             this.updateState({
-                isConnected: !is503, // При 503 соединение есть, но сервис недоступен
+                isConnected: !shouldMarkDisconnected, // При 503 соединение есть, но сервис недоступен
                 isServerReady: false,
-                failureCount: this.state.failureCount + 1,
+                failureCount: consecutiveFailures,
                 is503ErrorActive: is503
             });
 
             if (is503) {
-                console.warn(`🚫 Server returning 503 - WhatsApp service not ready`);
+                console.warn(`🚫 Server returning 503 - WhatsApp service not ready (failures: ${consecutiveFailures})`);
+            } else if (shouldMarkDisconnected) {
+                console.warn(`⚠️ Server disconnected after ${consecutiveFailures} failures:`, error.message);
             } else {
-                console.warn(`⚠️ Server status check failed:`, error.message);
+                console.warn(`⚠️ Server status check failed (${consecutiveFailures}/3):`, error.message);
             }
             
             return false;
@@ -185,9 +218,15 @@ class ConnectionStabilizer {
         // Немедленная проверка
         this.checkServerStatus();
 
-        // Периодическая проверка с адаптивным интервалом
+        // Периодическая проверка с адаптивным интервалом и backoff
         this.statusCheckInterval = setInterval(() => {
-            const interval = this.state.is503ErrorActive ? 15000 : 5000; // 15 сек при 503, 5 сек обычно
+            // Увеличиваем интервал при ошибках (exponential backoff)
+            const baseInterval = 5000; // 5 секунд базовый интервал
+            const backoffFactor = Math.min(this.state.failureCount, 5); // Максимум 5x
+            const interval = this.state.is503ErrorActive 
+                ? 15000 // 15 сек при 503
+                : baseInterval * (1 + backoffFactor * 0.5); // Увеличиваем при ошибках
+            
             this.checkServerStatus();
         }, 5000);
     }

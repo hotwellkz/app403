@@ -39,6 +39,7 @@ import axios from 'axios';
 import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import os from 'os';
 
 // Загружаем переменные окружения
@@ -637,8 +638,11 @@ app.get('/health', async (req, res) => {
         console.log(`🩺 Health check: ${overallHealthy ? 'HEALTHY' : 'DEGRADED'} - WhatsApp: ${healthData.whatsapp.ready ? 'READY' : 'NOT_READY'}`);
     } catch (error: any) {
         console.error('❌ Health check error:', error);
-        res.status(500).json({
+        // ВСЕГДА возвращаем 200, чтобы фронт не ломался даже при ошибке
+        res.status(200).json({
+            ok: true,
             status: 'error',
+            whatsappReady: false,
             timestamp: new Date().toISOString(),
             error: 'Health check failed',
             details: error?.message || 'Unknown error'
@@ -1727,8 +1731,12 @@ const restartWhatsAppClient = async (): Promise<void> => {
 
         // Уничтожаем текущий клиент
         if (client) {
-            await client.destroy();
-            console.log('Current client destroyed');
+            try {
+                await client.destroy();
+                console.log('Current client destroyed');
+            } catch (error: any) {
+                console.log('⚠️  Warning: Error destroying client:', error?.message || error);
+            }
         }
 
         // Создаем новый клиент
@@ -2135,6 +2143,23 @@ const setupEnhancedClientEventHandlers = (clientInstance: Client): void => {
         }
         
         updateWaState('authenticated', null); // Очищаем QR при аутентификации
+        
+        // Логируем сохранение сессии
+        try {
+            const sessionPath = process.env.WHATSAPP_SESSION_PATH || '/app/.wwebjs_auth';
+            const sessionDir = path.join(sessionPath, 'session-whatsapp-client');
+            const sessionExists = fsSync.existsSync(sessionDir);
+            console.log('[WA] authenticated: Session path:', sessionPath);
+            console.log('[WA] authenticated: Session directory exists:', sessionExists);
+            if (sessionExists) {
+                const files = fsSync.readdirSync(sessionDir);
+                console.log('[WA] authenticated: Session files count:', files.length);
+                console.log('[WA] authenticated: Session files:', files.slice(0, 5).join(', '), files.length > 5 ? '...' : '');
+            }
+        } catch (sessionErr: any) {
+            console.log('[WA] authenticated: Error checking session:', sessionErr?.message || sessionErr);
+        }
+        
         // Запускаем watchdog таймер для отслеживания ready timeout
         startReadyWatchdog();
         

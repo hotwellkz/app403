@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hotwell-cache-v3'; // Обновлено для принудительного обновления SW
+const CACHE_NAME = 'hotwell-cache-v4'; // Обновлено для принудительного обновления SW - исключены API пути
 const SETTINGS_CACHE_NAME = 'hotwell-settings-v1';
 
 const CACHED_URLS = [
@@ -157,26 +157,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // КРИТИЧНО: Запрещаем кэширование для API запросов и не-GET методов
-  const isApiRequest = url.pathname.includes('/api/') || 
+  // КРИТИЧНО: Запрещаем кэширование для API запросов, health, socket.io и не-GET методов
+  const isApiRequest = url.pathname.startsWith('/api/') || 
+                       url.pathname === '/health' ||
+                       url.pathname.startsWith('/socket.io/') ||
                        url.hostname === 'api.2wix.ru' || 
                        url.hostname.includes('api.2wix.ru');
   const isNonGetRequest = event.request.method !== 'GET';
   
-  // Для API запросов и не-GET методов - всегда networkOnly, без кэширования
+  // Для API запросов, health, socket.io и не-GET методов - всегда networkOnly, без кэширования
   if (isApiRequest || isNonGetRequest) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // НЕ кэшируем API запросы и не-GET запросы
-          return response;
-        })
-        .catch((error) => {
-          console.warn('🌐 API/Non-GET request failed:', error);
-          return createErrorResponse(503);
-        })
-    );
-    return;
+    // НЕ перехватываем эти запросы - пусть идут напрямую в сеть
+    return; // Service Worker не обрабатывает эти запросы
   }
 
   // Для HTML запросов используем Network First (только GET)

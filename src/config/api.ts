@@ -6,10 +6,11 @@ const getBackendUrl = (): string => {
     return 'http://localhost:3000';
   }
   
-  // В production используем HTTPS для безопасности (Mixed Content Fix)
+  // В production используем same-origin через nginx proxy (/api/*)
+  // Это устраняет CORS проблемы и Service Worker ошибки
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 
                      import.meta.env.VITE_API_URL ||
-                     'https://7608-35-194-39-8.ngrok-free.app'; // Updated: NEW ngrok URL
+                     ''; // Пустая строка = same-origin (используется /api/*)
   
   return backendUrl;
 };
